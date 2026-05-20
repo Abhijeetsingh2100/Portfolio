@@ -112,7 +112,7 @@ const timeline = [
 ];
 
 export default function PortfolioPage() {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useReducedMotion() ?? false;
   const { scrollYProgress } = useScroll();
   const heroLift = useTransform(scrollYProgress, [0, 0.22], [0, 36]);
   const heroFade = useTransform(scrollYProgress, [0, 0.14], [1, 0.94]);

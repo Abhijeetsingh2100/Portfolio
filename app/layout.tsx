@@ -1,17 +1,6 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   title: "Abhijeet Singh | Full Stack Mobile Developer",
@@ -39,10 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
-        data-theme="dark"
-      >
+      <body className="antialiased" data-theme="dark">
         {children}
       </body>
     </html>

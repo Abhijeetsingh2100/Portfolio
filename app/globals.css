@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  --font-space-grotesk: "Trebuchet MS", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-inter: "Inter", "Segoe UI", Arial, sans-serif;
   --bg: 6 9 16;
   --bg-soft: 10 14 24;
   --surface: 15 20 33;
