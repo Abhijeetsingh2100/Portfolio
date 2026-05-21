@@ -8,6 +8,8 @@ import {
   useReducedMotion,
   useScroll,
   useTransform,
+  useMotionValue,
+  useSpring,
 } from "framer-motion";
 import {
   ArrowUpRight,
@@ -25,6 +27,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import { MagneticButton } from "./magnetic-button";
@@ -32,6 +35,10 @@ import { MagneticButton } from "./magnetic-button";
 const HeroScene = dynamic(() => import("./hero-scene"), {
   ssr: false,
   loading: () => <HeroFallback />,
+});
+
+const Comic3DView = dynamic(() => import("./comic-3d-view"), {
+  ssr: false,
 });
 
 const skills = [
@@ -111,12 +118,63 @@ const timeline = [
   },
 ];
 
+// Interactive 3D Card Tilt Component
+function TiltCard({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const springConfig = { stiffness: 180, damping: 20, mass: 0.5 };
+  const mouseX = useSpring(x, springConfig);
+  const mouseY = useSpring(y, springConfig);
+
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], [8, -8]);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-8, 8]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseXVal = e.clientX - rect.left - width / 2;
+    const mouseYVal = e.clientY - rect.top - height / 2;
+    x.set(mouseXVal / width);
+    y.set(mouseYVal / height);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+      className={`relative transition-all duration-300 ${className}`}
+    >
+      <div style={{ transform: "translateZ(12px)", transformStyle: "preserve-3d" }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+}
+
 export default function PortfolioPage() {
   const reducedMotion = useReducedMotion() ?? false;
   const { scrollYProgress } = useScroll();
-  const heroLift = useTransform(scrollYProgress, [0, 0.22], [0, 36]);
+  const heroLift = useTransform(scrollYProgress, [0, 0.22], [0, 32]);
   const heroFade = useTransform(scrollYProgress, [0, 0.14], [1, 0.94]);
-  const panelTilt = useTransform(scrollYProgress, [0, 0.2], [0, 8]);
+  const panelTilt = useTransform(scrollYProgress, [0, 0.2], [0, 6]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [expandedProject, setExpandedProject] = useState("spendlock");
   const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false });
@@ -165,11 +223,13 @@ export default function PortfolioPage() {
   );
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden bg-halftone">
       <motion.div
         style={{ scaleX: scrollYProgress }}
-        className="pointer-events-none fixed left-0 top-0 z-[60] h-[3px] w-full origin-left bg-gradient-to-r from-cyan-300 via-teal-300 to-sky-200"
+        className="pointer-events-none fixed left-0 top-0 z-[60] h-[5px] w-full origin-left bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-400 border-b-2 border-slate-900 dark:border-slate-950"
       />
+      
+      {/* Decorative gradient overlay */}
       <AnimatePresence mode="wait">
         <motion.div
           key={theme}
@@ -180,23 +240,19 @@ export default function PortfolioPage() {
         >
           <div
             className={`absolute -left-24 top-20 h-[34rem] w-[34rem] rounded-full blur-3xl ${
-              theme === "dark" ? "bg-cyan-400/10" : "bg-sky-300/25"
+              theme === "dark" ? "bg-cyan-400/12" : "bg-cyan-300/18"
             }`}
           />
           <div
             className={`absolute -right-20 top-52 h-[28rem] w-[28rem] rounded-full blur-3xl ${
-              theme === "dark" ? "bg-teal-400/10" : "bg-cyan-300/20"
-            }`}
-          />
-          <div
-            className={`absolute bottom-0 left-1/2 h-[20rem] w-[50rem] -translate-x-1/2 rounded-full blur-3xl ${
-              theme === "dark" ? "bg-sky-400/8" : "bg-teal-200/30"
+              theme === "dark" ? "bg-amber-400/10" : "bg-amber-300/15"
             }`}
           />
         </motion.div>
       </AnimatePresence>
-      <div className="pointer-events-none fixed inset-0 grid-noise opacity-35" />
-      <div className="pointer-events-none fixed inset-0 noise-overlay opacity-35" />
+
+      <div className="pointer-events-none fixed inset-0 grid-noise opacity-30" />
+      <div className="pointer-events-none fixed inset-0 noise-overlay opacity-30" />
       <div className="pointer-events-none fixed inset-0 bg-radial-fade" />
       <FloatingParticles cursor={cursor} reducedMotion={reducedMotion} />
 
@@ -204,27 +260,27 @@ export default function PortfolioPage() {
         <motion.div
           animate={{ x: cursor.x - 14, y: cursor.y - 14, opacity: 1 }}
           transition={{ type: "spring", stiffness: 280, damping: 28, mass: 0.4 }}
-          className="pointer-events-none fixed left-0 top-0 z-50 hidden h-7 w-7 rounded-full border border-cyan-300/70 bg-cyan-300/10 shadow-[0_0_24px_rgba(45,212,191,0.4)] backdrop-blur-md md:block"
+          className="pointer-events-none fixed left-0 top-0 z-50 hidden h-7 w-7 rounded-lg border-2 border-slate-900 dark:border-cyan-300 bg-cyan-300/20 shadow-[3px_3px_0px_0px_#000] dark:shadow-[3px_3px_0px_0px_#22d3ee] md:block"
         />
       ) : null}
 
-      <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgb(var(--bg)/0.68)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--bg)/0.8)] backdrop-blur-xl transition-colors duration-200">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link href="#hero" className="group flex items-center gap-3">
-            <span className="relative flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-300/10 text-sm font-semibold text-cyan-200 shadow-glow">
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--accent))] text-sm font-black text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] dark:shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transform -rotate-3 transition group-hover:rotate-0">
               AS
             </span>
             <div>
-              <p className="text-sm font-semibold tracking-[0.25em] text-white/90">
+              <p className="text-sm font-black tracking-wider text-[rgb(var(--text))]">
                 ABHIJEET SINGH
               </p>
-              <p className="text-xs uppercase tracking-[0.32em] text-white/40">
+              <p className="text-[10px] uppercase font-bold tracking-widest text-[rgb(var(--muted))]">
                 Full Stack Mobile Developer
               </p>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-5 text-sm text-white/70 md:flex">
+          <nav className="hidden items-center gap-6 text-sm font-bold text-[rgb(var(--text))/0.8] md:flex">
             {[
               ["About", "#about"],
               ["Skills", "#skills"],
@@ -233,7 +289,7 @@ export default function PortfolioPage() {
               ["Resume", "#resume"],
               ["Contact", "#contact"],
             ].map(([label, href]) => (
-              <Link key={href} href={href} className="transition hover:text-white">
+              <Link key={href} href={href} className="transition-colors hover:text-[rgb(var(--cyan))]">
                 {label}
               </Link>
             ))}
@@ -242,7 +298,7 @@ export default function PortfolioPage() {
           <button
             type="button"
             onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:border-cyan-300/30 hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))] px-4 py-2 text-sm font-bold text-[rgb(var(--text))] shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transition transform hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
             aria-label="Toggle theme"
           >
             {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
@@ -254,7 +310,7 @@ export default function PortfolioPage() {
       <main className="relative z-10 mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
         <section
           id="hero"
-          className="grid min-h-[calc(100vh-88px)] items-center gap-12 py-16 lg:grid-cols-[1.1fr_0.9fr]"
+          className="grid min-h-[calc(100vh-88px)] items-center gap-12 py-16 lg:grid-cols-[1.15fr_0.85fr]"
         >
           <motion.div
             initial={false}
@@ -263,18 +319,20 @@ export default function PortfolioPage() {
             style={{ y: heroLift, opacity: heroFade }}
             className="relative z-10"
           >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/8 px-4 py-2 text-xs uppercase tracking-[0.3em] text-cyan-100/90">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] dark:shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transform -rotate-1">
               <Sparkles size={14} />
               React Native + Kotlin + Product UI Craft
             </div>
 
-            <h1 className="max-w-4xl text-5xl font-semibold leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl lg:text-8xl">
+            <h1 className="max-w-4xl text-5xl font-black leading-[0.9] tracking-tight text-[rgb(var(--text))] sm:text-6xl lg:text-7xl">
               <span className="block text-gradient">Building modern</span>
-              <span className="block">cross-platform mobile</span>
+              <span className="inline-block bg-[rgb(var(--accent))] text-slate-900 border-[3px] border-slate-900 dark:border-slate-950 px-4 py-1.5 my-2 rounded-2xl shadow-[5px_5px_0px_0px_rgba(15,23,42,1)] dark:shadow-[5px_5px_0px_0px_rgb(var(--card-shadow-color))] transform rotate-1">
+                cross-platform mobile
+              </span>
               <span className="block">applications.</span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-base leading-7 text-white/72 sm:text-lg">
+            <p className="mt-8 max-w-2xl text-base font-medium leading-7 text-[rgb(var(--text))]/0.8 sm:text-lg">
               Building modern cross-platform mobile applications with React Native and
               Kotlin. I am a 4th-year engineering student focused on polished interfaces,
               practical API integration, and production-style app experiences.
@@ -291,22 +349,18 @@ export default function PortfolioPage() {
               </MagneticButton>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <div className="mt-12 grid gap-6 sm:grid-cols-3">
               {[
                 ["Mobile builds", "08+"],
-                ["UI systems", "Glass + motion"],
+                ["UI systems", "Comic + motion"],
                 ["Focus", "Recruiter-ready apps"],
               ].map(([label, value]) => (
-                <motion.div
-                  key={label}
-                  initial={false}
-                  animate={mounted ? { opacity: 1, y: 0 } : false}
-                  transition={{ delay: 0.1, duration: 0.6 }}
-                  className="glass premium-border rounded-3xl p-4"
-                >
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/45">{label}</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{value}</p>
-                </motion.div>
+                <TiltCard key={label} className="w-full">
+                  <div className="glass rounded-2xl p-5 border-[3px] border-slate-900 dark:border-slate-950 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))] bg-halftone">
+                    <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">{label}</p>
+                    <p className="mt-2 text-lg font-black text-[rgb(var(--text))]">{value}</p>
+                  </div>
+                </TiltCard>
               ))}
             </div>
           </motion.div>
@@ -316,60 +370,65 @@ export default function PortfolioPage() {
             animate={mounted ? { opacity: 1, scale: 1 } : false}
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
             style={{ y: heroLift, rotateX: panelTilt }}
-            className="relative h-[540px] [perspective:1200px] lg:h-[680px]"
+            className="relative h-[500px] [perspective:1200px] lg:h-[600px]"
           >
-            <div className="glass premium-border absolute inset-0 overflow-hidden rounded-[2rem]">
-              <div className="absolute inset-0 mesh-gradient opacity-90" />
-              <HeroScene />
+            <TiltCard className="h-full w-full">
+              <div className="glass absolute inset-0 overflow-hidden rounded-[2rem] border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))]">
+                <div className="absolute inset-0 mesh-gradient opacity-90" />
+                <HeroScene theme={theme} />
 
-              <div className="absolute left-5 top-5 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-xl">
-                <p className="text-[10px] uppercase tracking-[0.4em] text-cyan-100/70">
-                  Live 3D
-                </p>
-                <p className="mt-1 text-sm font-medium text-white/90">
-                  Interactive product aura
-                </p>
-              </div>
+                {/* Comic bubble aura banner */}
+                <div className="absolute left-5 top-5 rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--accent))] px-3 py-2 text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))] transform -rotate-2">
+                  <p className="text-[9px] uppercase font-black tracking-wider">
+                    Interactive
+                  </p>
+                  <p className="text-xs font-black">
+                    Toon-shaded 3D aura
+                  </p>
+                </div>
 
-              <div className="absolute bottom-5 left-5 right-5 grid gap-4 sm:grid-cols-3">
-                {[
-                  ["React Native", "Cross-platform"],
-                  ["Kotlin", "Native Android"],
-                  ["API", "Auth + data"],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="glass rounded-2xl border border-white/10 px-4 py-3 backdrop-blur-2xl"
-                  >
-                    <p className="text-[10px] uppercase tracking-[0.32em] text-white/45">
-                      {label}
-                    </p>
-                    <p className="mt-2 text-sm text-white/86">{value}</p>
-                  </div>
-                ))}
+                <div className="absolute bottom-5 left-5 right-5 grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["React Native", "Cross-platform"],
+                    ["Kotlin", "Native Android"],
+                    ["API", "Auth + data"],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="glass rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface))/0.9] px-3 py-2 backdrop-blur-md shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))]"
+                    >
+                      <p className="text-[9px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[rgb(var(--text))]">{value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </TiltCard>
           </motion.div>
         </section>
 
-        <SectionDivider />
+        <SectionDivider label="PAGE 01 / PROFILE" />
 
         <Section id="about" eyebrow="01 / About" title="A mobile-focused builder with design instincts.">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <GlassCard>
-              <p className="text-lg leading-8 text-white/75">
-                I'm passionate about mobile app development and the craft behind products
-                that feel premium from the first interaction. My work focuses on frontend
-                experience, polished UI systems, and practical integrations that make apps
-                feel complete.
-              </p>
-              <p className="mt-4 text-lg leading-8 text-white/75">
-                I enjoy building production-style applications with authentication,
-                API-driven flows, responsive layouts, and careful motion design. I'm
-                constantly learning, refining, and pushing toward cleaner architecture and
-                better delivery.
-              </p>
-            </GlassCard>
+            <TiltCard>
+              <GlassCard className="bg-halftone h-full border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))]">
+                <p className="text-lg font-bold leading-8 text-[rgb(var(--text))]/0.85">
+                  I'm passionate about mobile app development and the craft behind products
+                  that feel premium from the first interaction. My work focuses on frontend
+                  experience, polished UI systems, and practical integrations that make apps
+                  feel complete.
+                </p>
+                <p className="mt-4 text-lg font-medium leading-8 text-[rgb(var(--text))]/0.8">
+                  I enjoy building production-style applications with authentication,
+                  API-driven flows, responsive layouts, and careful motion design. I'm
+                  constantly learning, refining, and pushing toward cleaner architecture and
+                  better delivery.
+                </p>
+              </GlassCard>
+            </TiltCard>
 
             <div className="grid gap-4">
               {[
@@ -377,486 +436,509 @@ export default function PortfolioPage() {
                 ["Integration ready", "Comfortable wiring auth, APIs, and data layers."],
                 ["Learning velocity", "I iterate quickly and improve with each build."],
               ].map(([title, text]) => (
-                <GlassCard key={title} className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-3 text-cyan-100">
-                      <BadgeCheck size={18} />
+                <TiltCard key={title}>
+                  <GlassCard className="p-5 border-[3px] border-slate-900 dark:border-slate-950 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))]">
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] p-2.5 text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))]">
+                        <BadgeCheck size={18} />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-[rgb(var(--text))]">{title}</p>
+                        <p className="mt-1 text-sm font-medium leading-6 text-[rgb(var(--text))]/0.75">{text}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-white">{title}</p>
-                      <p className="mt-2 text-sm leading-6 text-white/66">{text}</p>
-                    </div>
-                  </div>
-                </GlassCard>
+                  </GlassCard>
+                </TiltCard>
               ))}
             </div>
           </div>
         </Section>
 
+        <SectionDivider label="PAGE 02 / SKILLS" />
+
         <Section id="skills" eyebrow="02 / Skills" title="Strong technical depth, framed with interactive presentation.">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {skills.map((skill, index) => (
-              <motion.div
-                key={skill}
-                whileHover={{ y: -8, scale: 1.01 }}
-                transition={{ type: "spring", stiffness: 240, damping: 18 }}
-                className="glass premium-border group rounded-3xl p-5"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-semibold text-white">{skill}</p>
-                  <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-cyan-100/80">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
+              <TiltCard key={skill}>
+                <div className="glass premium-border bg-halftone rounded-2xl p-5 border-[3px] border-slate-900 dark:border-slate-950 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-lg font-black text-[rgb(var(--text))]">{skill}</p>
+                    <span className="rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--accent))] px-2.5 py-0.5 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <div className="mt-4 h-[3px] bg-slate-900 dark:bg-white" />
+                  <p className="mt-4 text-sm font-medium leading-6 text-[rgb(var(--text))]/0.75">
+                    Built into polished mobile interfaces with smooth interactions and
+                    production-minded implementation details.
+                  </p>
                 </div>
-                <div className="mt-6 h-px bg-gradient-to-r from-white/5 via-cyan-300/40 to-white/5" />
-                <p className="mt-4 text-sm leading-6 text-white/62">
-                  Built into polished mobile interfaces with smooth interactions and
-                  production-minded implementation details.
-                </p>
-              </motion.div>
+              </TiltCard>
             ))}
           </div>
         </Section>
+
+        <SectionDivider label="PAGE 03 / PROJECTS" />
 
         <Section
           id="projects"
           eyebrow="03 / Featured Projects"
           title="Case-study style project stories with motion, depth, and clear actions."
         >
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            <motion.article
-              layout
-              className="glass premium-border overflow-hidden rounded-[2rem] p-6 lg:p-8"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-cyan-100/70">
-                    Featured / {activeProject.category}
-                  </p>
-                  <h3 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
-                    {activeProject.name}
-                  </h3>
-                </div>
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <TiltCard>
+              <article className="glass bg-halftone overflow-hidden rounded-[2rem] p-6 lg:p-8 border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                      Featured / {activeProject.category}
+                    </p>
+                    <h3 className="mt-2 text-3xl font-black text-[rgb(var(--text))] sm:text-4xl">
+                      {activeProject.name}
+                    </h3>
+                  </div>
 
-                <div className="flex gap-3">
-                  <a
-                    href={activeProject.github}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
-                  >
-                    <Github size={16} />
-                    GitHub
-                  </a>
-                  {activeProject.live.startsWith("http") ? (
+                  <div className="flex gap-3">
                     <a
-                      href={activeProject.live}
+                      href={activeProject.github}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/12 px-4 py-2 text-sm text-white transition hover:bg-cyan-300/18"
+                      className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))] px-4 py-2 text-xs font-bold text-[rgb(var(--text))] shadow-[2.5px_2.5px_0px_0px_rgb(var(--card-shadow-color))] transform hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                     >
-                      Live Demo
-                      <ArrowUpRight size={16} />
+                      <Github size={14} />
+                      GitHub
                     </a>
-                  ) : (
-                    <Link
-                      href={activeProject.live}
-                      className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/12 px-4 py-2 text-sm text-white transition hover:bg-cyan-300/18"
-                    >
-                      Live Demo
-                      <ArrowUpRight size={16} />
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-8 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="space-y-4">
-                  <p className="text-base leading-7 text-white/72">
-                    {activeProject.description}
-                  </p>
-                  <p className="text-sm leading-6 text-white/56">{activeProject.details}</p>
-                  <div className="flex flex-wrap gap-2 pt-3">
-                    {activeProject.tech.map((tech) => (
-                      <span
-                        key={tech}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/72"
+                    {activeProject.live.startsWith("http") ? (
+                      <a
+                        href={activeProject.live}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-4 py-2 text-xs font-black text-slate-900 shadow-[2.5px_2.5px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2.5px_2.5px_0px_0px_rgb(var(--card-shadow-color))] transform hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                       >
-                        {tech}
-                      </span>
-                    ))}
+                        Live Demo
+                        <ArrowUpRight size={14} />
+                      </a>
+                    ) : (
+                      <Link
+                        href={activeProject.live}
+                        className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-4 py-2 text-xs font-black text-slate-900 shadow-[2.5px_2.5px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2.5px_2.5px_0px_0px_rgb(var(--card-shadow-color))] transform hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                      >
+                        Live Demo
+                        <ArrowUpRight size={14} />
+                      </Link>
+                    )}
                   </div>
                 </div>
 
-                <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.24),transparent_40%)]" />
-                  <div className="relative grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
-                    <div className="mx-auto flex h-[300px] w-[160px] items-center justify-center rounded-[2rem] border border-white/12 bg-black/35 p-3 shadow-[0_0_60px_rgba(0,0,0,0.25)]">
-                      <div className="h-full w-full rounded-[1.45rem] border border-cyan-200/15 bg-[linear-gradient(180deg,rgba(10,16,23,1),rgba(20,40,43,0.95))] p-3">
-                        <div className="h-2 w-14 rounded-full bg-white/20" />
-                        <div className="mt-4 space-y-3">
-                          <div className="h-20 rounded-2xl bg-cyan-300/12 p-3">
-                            <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-100/60">
-                              Overview
-                            </p>
-                            <p className="mt-2 text-sm font-semibold text-white">Subscriptions</p>
-                          </div>
-                          <div className="h-16 rounded-2xl bg-white/6 p-3" />
-                          <div className="h-16 rounded-2xl bg-white/6 p-3" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                          Why it matters
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/70">
-                          Recruiter-ready UI with an intentional mobile information hierarchy.
-                        </p>
-                      </div>
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                          Mobile polish
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/70">
-                          Animated cards, premium spacing, and app-like pacing designed to
-                          feel production-grade.
-                        </p>
-                      </div>
-                      <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                          Focus
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/70">
-                          Cross-platform delivery, authentication, and recurring expense
-                          visibility.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.article>
-
-            <div className="space-y-4">
-              {projects.map((project) => {
-                const expanded = expandedProject === project.id;
-                return (
-                  <motion.button
-                    key={project.id}
-                    type="button"
-                    onClick={() => setExpandedProject(project.id)}
-                    whileHover={{ y: -4 }}
-                    className={`glass premium-border w-full rounded-[1.75rem] p-5 text-left transition ${
-                      expanded ? "border-cyan-300/25 bg-cyan-300/8" : "hover:bg-white/8"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                          {project.category}
-                        </p>
-                        <h4 className="mt-2 text-xl font-semibold text-white">{project.name}</h4>
-                      </div>
-                      <ChevronDown
-                        size={18}
-                        className={`transition ${expanded ? "rotate-180" : ""}`}
-                      />
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-white/66">{project.description}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {project.tech.map((tech) => (
+                <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                  <div className="space-y-4">
+                    <p className="text-base font-bold leading-7 text-[rgb(var(--text))]/0.8">
+                      {activeProject.description}
+                    </p>
+                    <p className="text-sm font-medium leading-6 text-[rgb(var(--text))]/0.7">{activeProject.details}</p>
+                    <div className="flex flex-wrap gap-2 pt-3">
+                      {activeProject.tech.map((tech) => (
                         <span
                           key={tech}
-                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70"
+                          className="rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface))] px-3 py-1 text-xs font-bold text-[rgb(var(--text))] shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))]"
                         >
                           {tech}
                         </span>
                       ))}
                     </div>
+                  </div>
 
-                    <AnimatePresence initial={false}>
-                      {expanded ? (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.28 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mt-4 flex flex-wrap gap-3">
-                            <a
-                              href={project.github}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80"
-                            >
-                              <Github size={14} />
-                              GitHub
-                            </a>
-                            {project.live.startsWith("http") ? (
+                  {/* 3D Mockup phone card */}
+                  <div className="relative overflow-hidden rounded-[2rem] border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/50 p-4">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.18),transparent_50%)]" />
+                    
+                    <div className="relative flex justify-center items-center h-full">
+                      {/* Stylized physical comic phone */}
+                      <div className="relative mx-auto flex h-[320px] w-[180px] items-center justify-center rounded-[2.2rem] border-[4px] border-slate-900 dark:border-slate-950 bg-slate-950 p-3 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))]">
+                        {/* Notch */}
+                        <div className="absolute top-2 left-1/2 h-3.5 w-16 -translate-x-1/2 rounded-full bg-slate-900 dark:bg-white z-20 border border-slate-900 dark:border-slate-950" />
+                        
+                        <div className="h-full w-full overflow-hidden rounded-[1.6rem] border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface))] relative flex flex-col justify-between p-3">
+                          {/* 3D Toon Component */}
+                          <div className="absolute inset-0 z-0">
+                            <Comic3DView
+                              shape={
+                                expandedProject === "weather"
+                                  ? "cloud"
+                                  : expandedProject === "news"
+                                  ? "globe"
+                                  : "box"
+                              }
+                              theme={theme}
+                            />
+                          </div>
+
+                          <div className="relative z-10 flex justify-between items-center">
+                            <span className="text-[9px] font-black uppercase text-slate-900 bg-[rgb(var(--accent))] border-2 border-slate-900 dark:border-slate-950 px-2 py-0.5 rounded shadow-[1.5px_1.5px_0px_0px_rgba(15,23,42,1)] transform -rotate-3">
+                              3D DEMO
+                            </span>
+                          </div>
+
+                          <div className="relative z-10 bg-slate-950/75 border-2 border-slate-900 dark:border-slate-950 backdrop-blur-xs rounded-xl p-2.5 mb-1.5 shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))] text-left">
+                            <p className="text-[10px] uppercase font-black text-[rgb(var(--cyan))] tracking-wider">
+                              {activeProject.name}
+                            </p>
+                            <p className="text-[9px] text-white/90 leading-tight mt-0.5 line-clamp-2">
+                              {activeProject.description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </TiltCard>
+
+            <div className="space-y-4">
+              {projects.map((project) => {
+                const expanded = expandedProject === project.id;
+                return (
+                  <TiltCard key={project.id}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedProject(project.id)}
+                      className={`glass w-full rounded-[1.75rem] p-5 text-left border-[3px] shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))] bg-halftone transition-colors duration-150 ${
+                        expanded 
+                          ? "border-[rgb(var(--cyan))] bg-cyan-300/8 shadow-[4px_4px_0px_0px_rgb(var(--cyan))]" 
+                          : "border-slate-900 dark:border-slate-950 hover:bg-slate-100/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                            {project.category}
+                          </p>
+                          <h4 className="mt-1 text-xl font-black text-[rgb(var(--text))]">{project.name}</h4>
+                        </div>
+                        <ChevronDown
+                          size={18}
+                          className={`transition transform duration-200 ${expanded ? "rotate-180 text-[rgb(var(--cyan))]" : ""}`}
+                        />
+                      </div>
+                      <p className="mt-3 text-sm font-medium leading-6 text-[rgb(var(--text))]/0.75">{project.description}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {project.tech.map((tech) => (
+                          <span
+                            key={tech}
+                            className="rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/60 px-2.5 py-0.5 text-[11px] font-bold text-[rgb(var(--text))]"
+                          >
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {expanded ? (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.22 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-4 flex flex-wrap gap-3">
                               <a
-                                href={project.live}
+                                href={project.github}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs text-white"
+                                className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface))] px-3 py-1.5 text-xs font-bold text-[rgb(var(--text))]"
                               >
-                                Demo
-                                <ArrowUpRight size={14} />
+                                <Github size={12} />
+                                GitHub
                               </a>
-                            ) : (
-                              <Link
-                                href={project.live}
-                                className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs text-white"
-                              >
-                                Demo
-                                <ArrowUpRight size={14} />
-                              </Link>
-                            )}
-                          </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </motion.button>
+                              {project.live.startsWith("http") ? (
+                                <a
+                                  href={project.live}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-3 py-1.5 text-xs font-black text-slate-900"
+                                >
+                                  Demo
+                                  <ArrowUpRight size={12} />
+                                </a>
+                              ) : (
+                                <Link
+                                  href={project.live}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-3 py-1.5 text-xs font-black text-slate-900"
+                                >
+                                  Demo
+                                  <ArrowUpRight size={12} />
+                                </Link>
+                              )}
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </button>
+                  </TiltCard>
                 );
               })}
             </div>
           </div>
         </Section>
 
+        <SectionDivider label="PAGE 04 / METRICS" />
+
         <Section id="knowledge" eyebrow="04 / Knowledge" title="Practical knowledge depth with recruiter-friendly stats.">
           <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <GlassCard className="space-y-5">
-              <p className="text-sm leading-7 text-white/70">
-                A quick snapshot of your technical strengths, centered on the skills you
-                can demonstrate in production-style mobile and full-stack work.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  { label: "Mobile UI Craft", value: "Expert" },
-                  { label: "API Integration", value: "Strong" },
-                  { label: "Auth Systems", value: "Strong" },
-                  { label: "Android Kotlin", value: "Strong" },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                      {stat.label}
-                    </p>
-                    <p className="mt-3 text-2xl font-semibold text-white">{stat.value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-3xl border border-cyan-300/20 bg-cyan-300/10 p-5">
-                <p className="text-xs uppercase tracking-[0.3em] text-cyan-100/75">
-                  Positioning
+            <TiltCard>
+              <GlassCard className="space-y-5 border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))] h-full bg-halftone">
+                <p className="text-sm font-bold leading-7 text-[rgb(var(--text))]/0.75">
+                  A quick snapshot of your technical strengths, centered on the skills you
+                  can demonstrate in production-style mobile and full-stack work.
                 </p>
-                <p className="mt-3 text-base leading-7 text-white/85">
-                  Full stack mobile developer focused on polished product interfaces,
-                  practical API flows, and clean implementation.
-                </p>
-              </div>
-            </GlassCard>
-
-            <GlassCard className="space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                    Knowledge metrics
-                  </p>
-                  <p className="mt-2 text-xl font-semibold text-white">What you can build well</p>
+                
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[
+                    { label: "Mobile UI Craft", value: "Expert" },
+                    { label: "API Integration", value: "Strong" },
+                    { label: "Auth Systems", value: "Strong" },
+                    { label: "Android Kotlin", value: "Strong" },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/60 p-4 shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))]"
+                    >
+                      <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                        {stat.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-black text-[rgb(var(--text))]">{stat.value}</p>
+                    </div>
+                  ))}
                 </div>
-                <Sparkles className="text-cyan-100/80" size={20} />
-              </div>
 
-              <div className="space-y-3">
-                {[
-                  ["React Native + Expo", 92],
-                  ["Kotlin + Android", 84],
-                  ["NativeWind + UI polish", 90],
-                  ["Clerk + Auth flows", 81],
-                  ["Firebase + APIs", 87],
-                  ["Git/GitHub workflow", 88],
-                ].map(([label, value]) => (
-                  <div key={label} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm text-white/72">
-                      <span>{label}</span>
-                      <span>{value}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/8">
-                      <div
-                        className="h-2 rounded-full bg-gradient-to-r from-cyan-300 via-teal-300 to-cyan-100 shadow-glow"
-                        style={{ width: `${value}%` }}
-                      />
-                    </div>
+                <div className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))]/12 p-5">
+                  <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--cyan))]">
+                    Positioning
+                  </p>
+                  <p className="mt-2 text-base font-bold leading-7 text-[rgb(var(--text))]/0.85">
+                    Full stack mobile developer focused on polished product interfaces,
+                    practical API flows, and clean implementation.
+                  </p>
+                </div>
+              </GlassCard>
+            </TiltCard>
+
+            <TiltCard>
+              <GlassCard className="space-y-6 border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))] h-full bg-halftone">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                      Knowledge metrics
+                    </p>
+                    <p className="mt-1 text-xl font-black text-[rgb(var(--text))]">What you can build well</p>
                   </div>
-                ))}
-              </div>
-            </GlassCard>
+                  <Sparkles className="text-[rgb(var(--cyan))]" size={20} />
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    ["React Native + Expo", 92],
+                    ["Kotlin + Android", 84],
+                    ["NativeWind + UI polish", 90],
+                    ["Clerk + Auth flows", 81],
+                    ["Firebase + APIs", 87],
+                    ["Git/GitHub workflow", 88],
+                  ].map(([label, value]) => (
+                    <div key={label} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm font-bold text-[rgb(var(--text))]/0.8">
+                        <span>{label}</span>
+                        <span>{value}%</span>
+                      </div>
+                      
+                      {/* Comic loading bar */}
+                      <div className="h-4 rounded-lg border-[3px] border-slate-900 dark:border-slate-950 bg-slate-900 overflow-hidden shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))]">
+                        <div
+                          className="h-full bg-gradient-to-r from-[rgb(var(--cyan))] via-[rgb(var(--teal))] to-[rgb(var(--accent))] border-r-[3px] border-slate-900 dark:border-slate-950"
+                          style={{ width: `${value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </TiltCard>
           </div>
         </Section>
 
+        <SectionDivider label="PAGE 05 / TIMELINE" />
+
         <Section id="resume" eyebrow="05 / Resume" title="Learning timeline and growth trajectory.">
           <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-            <GlassCard className="space-y-6">
-              <p className="text-base leading-7 text-white/72">
-                This section is framed like a high-end professional summary with a resume
-                download action and a timeline that highlights your development journey.
-              </p>
-              <MagneticButton href="/Resume(react).pdf" download>
-                <Download size={16} />
-                Download Resume
-              </MagneticButton>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                  Current status
+            <TiltCard>
+              <GlassCard className="space-y-6 border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))] h-full bg-halftone">
+                <p className="text-base font-bold leading-7 text-[rgb(var(--text))]/0.8">
+                  This section is framed like a high-end professional summary with a resume
+                  download action and a timeline that highlights your development journey.
                 </p>
-                <p className="mt-3 text-lg font-semibold text-white">4th-year engineering student</p>
-                <p className="mt-2 text-sm leading-6 text-white/66">
-                  Balancing academics with real-world mobile app building, technical depth,
-                  and continuous portfolio refinement.
-                </p>
-              </div>
-            </GlassCard>
+                <MagneticButton href="/Resume(react).pdf" download>
+                  <Download size={16} />
+                  Download Resume
+                </MagneticButton>
+                
+                <div className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/60 p-5 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))]">
+                  <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">
+                    Current status
+                  </p>
+                  <p className="mt-2 text-lg font-black text-[rgb(var(--text))]">4th-year engineering student</p>
+                  <p className="mt-2 text-sm font-medium leading-6 text-[rgb(var(--text))]/0.75">
+                    Balancing academics with real-world mobile app building, technical depth,
+                    and continuous portfolio refinement.
+                  </p>
+                </div>
+              </GlassCard>
+            </TiltCard>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {timeline.map((item) => (
-                <motion.div
-                  key={item.year}
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.3 }}
-                  className="glass premium-border rounded-[1.75rem] p-5"
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-cyan-100/80">
-                      {item.year}
-                    </span>
-                    <h4 className="text-lg font-semibold text-white">{item.title}</h4>
+                <TiltCard key={item.year}>
+                  <div className="glass bg-halftone rounded-[1.75rem] p-5 border-[3px] border-slate-900 dark:border-slate-950 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))]">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="rounded-full border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--accent))] px-3.5 py-1 text-xs font-black text-slate-900 shadow-[2px_2px_0px_0px_rgba(15,23,42,1)] dark:shadow-[2px_2px_0px_0px_rgb(var(--card-shadow-color))] transform -rotate-1">
+                        {item.year}
+                      </span>
+                      <h4 className="text-lg font-black text-[rgb(var(--text))]">{item.title}</h4>
+                    </div>
+                    <p className="mt-3 text-sm font-medium leading-7 text-[rgb(var(--text))]/0.75">{item.text}</p>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-white/68">{item.text}</p>
-                </motion.div>
+                </TiltCard>
               ))}
             </div>
           </div>
         </Section>
 
+        <SectionDivider label="PAGE 06 / CONTACT" />
+
         <Section id="contact" eyebrow="06 / Contact" title="A premium contact surface for recruiters and product teams.">
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-            <GlassCard className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <ContactField label="Email" value="abhijeet200508@gmail.com" icon={<Mail size={16} />} />
-                <ContactField
-                  label="LinkedIn"
-                  value="linkedin.com/in/abhijeet-singh-a6571b325"
-                  icon={<Linkedin size={16} />}
-                />
-              </div>
-              <form
-                className="grid gap-4"
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  const formElement = event.currentTarget;
-                  const formData = new FormData(formElement);
-                  const name = String(formData.get("name") ?? "").trim();
-                  const email = String(formData.get("email") ?? "").trim();
-                  const message = String(formData.get("message") ?? "").trim();
-                  const subject = encodeURIComponent(`Portfolio message from ${name || "visitor"}`);
-                  const body = encodeURIComponent(
-                    `Name: ${name}\nEmail: ${email}\n\n${message}`,
-                  );
-
-                  window.location.href =
-                    `mailto:abhijeet200508@gmail.com?subject=${subject}&body=${body}`;
-
-                  formElement.reset();
-                  setContactState({
-                    success: "Your email app opened with the message prefilled.",
-                  });
-                }}
-              >
+            <TiltCard>
+              <GlassCard className="space-y-6 border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))] bg-halftone">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    name="name"
-                    type="text"
-                    placeholder="Your name"
-                    required
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/30"
-                  />
-                  <input
-                    name="email"
-                    type="email"
-                    placeholder="Your email"
-                    required
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/30"
-                  />
+                  <TiltCard>
+                    <ContactField label="Email" value="abhijeet200508@gmail.com" icon={<Mail size={16} />} />
+                  </TiltCard>
+                  <TiltCard>
+                    <ContactField
+                      label="LinkedIn"
+                      value="linkedin.com/in/abhijeet-singh-a6571b325"
+                      icon={<Linkedin size={16} />}
+                    />
+                  </TiltCard>
                 </div>
-                <textarea
-                  name="message"
-                  rows={5}
-                  required
-                  placeholder="Tell me about the role, product, or collaboration..."
-                  className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/30"
-                />
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-[rgb(var(--cyan)/0.35)] bg-[rgb(var(--cyan)/0.12)] px-5 py-3 text-sm font-medium text-white transition hover:bg-[rgb(var(--cyan)/0.2)]"
-                  >
-                    <Mail size={16} />
-                    Send Email
-                  </button>
-                  <MagneticButton href="https://github.com/Abhijeetsingh2100" variant="secondary">
-                    <Github size={16} />
-                    GitHub
-                  </MagneticButton>
-                </div>
-                {contactState.success ? <p className="text-sm text-teal-200">{contactState.success}</p> : null}
-              </form>
-            </GlassCard>
+                
+                <form
+                  className="grid gap-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const formElement = event.currentTarget;
+                    const formData = new FormData(formElement);
+                    const name = String(formData.get("name") ?? "").trim();
+                    const email = String(formData.get("email") ?? "").trim();
+                    const message = String(formData.get("message") ?? "").trim();
+                    const subject = encodeURIComponent(`Portfolio message from ${name || "visitor"}`);
+                    const body = encodeURIComponent(
+                      `Name: ${name}\nEmail: ${email}\n\n${message}`,
+                    );
 
-            <GlassCard className="relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.18),transparent_44%)]" />
-              <div className="relative space-y-5">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/40">Social links</p>
-                <div className="grid gap-4">
-                  <SocialLink
-                    icon={<Github size={18} />}
-                    label="GitHub"
-                    href="https://github.com/Abhijeetsingh2100"
-                    value="github.com/Abhijeetsingh2100"
+                    window.location.href =
+                      `mailto:abhijeet200508@gmail.com?subject=${subject}&body=${body}`;
+
+                    formElement.reset();
+                    setContactState({
+                      success: "Your email app opened with the message prefilled.",
+                    });
+                  }}
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <input
+                      name="name"
+                      type="text"
+                      placeholder="Your name"
+                      required
+                      className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-bold text-[rgb(var(--text))] outline-none shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transition placeholder:text-[rgb(var(--text))]/0.4 focus:border-[rgb(var(--cyan))]"
+                    />
+                    <input
+                      name="email"
+                      type="email"
+                      placeholder="Your email"
+                      required
+                      className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-bold text-[rgb(var(--text))] outline-none shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transition placeholder:text-[rgb(var(--text))]/0.4 focus:border-[rgb(var(--cyan))]"
+                    />
+                  </div>
+                  <textarea
+                    name="message"
+                    rows={4}
+                    required
+                    placeholder="Tell me about the role, product, or collaboration..."
+                    className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-bold text-[rgb(var(--text))] outline-none shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transition placeholder:text-[rgb(var(--text))]/0.4 focus:border-[rgb(var(--cyan))]"
                   />
-                  <SocialLink
-                    icon={<Linkedin size={18} />}
-                    label="LinkedIn"
-                    href="https://www.linkedin.com/in/abhijeet-singh-a6571b325/"
-                    value="linkedin.com/in/abhijeet-singh-a6571b325"
-                  />
-                  <SocialLink
-                    icon={<Mail size={18} />}
-                    label="Email"
-                    href="mailto:abhijeet200508@gmail.com"
-                    value="abhijeet200508@gmail.com"
-                  />
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))] px-6 py-3 text-xs font-black tracking-wider uppercase text-slate-900 shadow-[4px_4px_0px_0px_rgb(var(--card-shadow-color))] transition transform hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none cursor-pointer"
+                    >
+                      <Mail size={14} />
+                      Send Email
+                    </button>
+                    <MagneticButton href="https://github.com/Abhijeetsingh2100" variant="secondary">
+                      <Github size={14} />
+                      GitHub
+                    </MagneticButton>
+                  </div>
+                  {contactState.success ? <p className="text-sm font-bold text-[rgb(var(--cyan))] mt-2">{contactState.success}</p> : null}
+                </form>
+              </GlassCard>
+            </TiltCard>
+
+            <TiltCard>
+              <GlassCard className="relative overflow-hidden border-[3px] border-slate-900 dark:border-slate-950 shadow-[6px_6px_0px_0px_rgb(var(--card-shadow-color))] bg-halftone h-full flex flex-col justify-between">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.18),transparent_50%)] pointer-events-none" />
+                <div className="relative space-y-5">
+                  <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--muted))]">Social links</p>
+                  <div className="grid gap-4">
+                    <SocialLink
+                      icon={<Github size={18} />}
+                      label="GitHub"
+                      href="https://github.com/Abhijeetsingh2100"
+                      value="github.com/Abhijeetsingh2100"
+                    />
+                    <SocialLink
+                      icon={<Linkedin size={18} />}
+                      label="LinkedIn"
+                      href="https://www.linkedin.com/in/abhijeet-singh-a6571b325/"
+                      value="linkedin.com/in/abhijeet-singh-a6571b325"
+                    />
+                    <SocialLink
+                      icon={<Mail size={18} />}
+                      label="Email"
+                      href="mailto:abhijeet200508@gmail.com"
+                      value="abhijeet200508@gmail.com"
+                    />
+                  </div>
                 </div>
 
-                <div className="rounded-[1.75rem] border border-cyan-300/15 bg-cyan-300/8 p-5">
-                  <p className="text-sm uppercase tracking-[0.3em] text-cyan-100/75">
+                <div className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--cyan))]/10 p-5 mt-6 text-left">
+                  <p className="text-[10px] uppercase font-black tracking-wider text-[rgb(var(--cyan))]">
                     Portfolio intent
                   </p>
-                  <p className="mt-3 text-lg leading-8 text-white/86">
+                  <p className="mt-2 text-base font-bold leading-7 text-[rgb(var(--text))]/0.85">
                     A polished futuristic portfolio of a modern mobile developer capable of
                     building production-quality cross-platform applications.
                   </p>
                 </div>
-              </div>
-            </GlassCard>
+              </GlassCard>
+            </TiltCard>
           </div>
         </Section>
       </main>
 
-      <footer className="border-t border-white/5 px-4 py-8 text-center text-sm text-white/45">
+      <footer className="border-t-[3px] border-slate-900 dark:border-slate-950 px-4 py-8 text-center text-sm font-bold text-[rgb(var(--text))]/0.5 bg-[rgb(var(--surface-2))]/30 transition-colors duration-200">
         <p>Abhijeet Singh portfolio concept built with Next.js, Tailwind CSS, Framer Motion, and Three.js.</p>
       </footer>
     </div>
@@ -912,7 +994,7 @@ function FloatingParticles({
         return (
           <motion.span
             key={index}
-            className="absolute rounded-full bg-cyan-200/60 blur-[1px]"
+            className="absolute rounded-lg bg-[rgb(var(--cyan))]/30 border border-slate-900 dark:border-slate-950 shadow-[1px_1px_0px_0px_rgba(0,0,0,0.15)]"
             style={{
               left: `${particle.left}%`,
               top: `${particle.top}%`,
@@ -927,7 +1009,7 @@ function FloatingParticles({
                 : {
                     y: [0, -12, 0],
                     opacity: [0.25, 0.85, 0.25],
-                    scale: [1, 1.2, 1],
+                    scale: [1, 1.15, 1],
                   }
             }
             transition={{
@@ -968,8 +1050,10 @@ function Section({
         viewport={{ once: true, amount: 0.18 }}
         transition={{ duration: 0.65, ease: "easeOut" }}
       >
-        <p className="text-xs uppercase tracking-[0.38em] text-cyan-100/65">{eyebrow}</p>
-        <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl lg:text-5xl">
+        <span className="comic-badge mb-2">
+          {eyebrow}
+        </span>
+        <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight text-[rgb(var(--text))] sm:text-4xl lg:text-5xl">
           {title}
         </h2>
       </motion.div>
@@ -978,8 +1062,19 @@ function Section({
   );
 }
 
-function SectionDivider() {
-  return <div className="my-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />;
+function SectionDivider({ label }: { label?: string }) {
+  return (
+    <div className="relative my-16 flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center">
+        <div className="w-full border-t-[4px] border-slate-900 dark:border-slate-950" />
+      </div>
+      {label && (
+        <span className="relative z-10 bg-[rgb(var(--accent))] text-slate-900 font-extrabold text-xs uppercase px-4 py-2 border-[3px] border-slate-900 dark:border-slate-950 rounded-lg shadow-[3px_3px_0px_0px_rgba(15,23,42,1)] dark:shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transform -rotate-1">
+          {label}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function GlassCard({
@@ -990,7 +1085,7 @@ function GlassCard({
   className?: string;
 }) {
   return (
-    <div className={`glass premium-border rounded-[2rem] p-6 ${className}`}>{children}</div>
+    <div className={`glass rounded-[2rem] p-6 ${className}`}>{children}</div>
   );
 }
 
@@ -1004,12 +1099,14 @@ function ContactField({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
-        {icon}
+    <div className="rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/60 p-4 shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] h-full">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[rgb(var(--muted))]">
+        <span className="p-1 rounded bg-[rgb(var(--accent))] text-slate-900 border border-slate-900 dark:border-slate-950">
+          {icon}
+        </span>
         {label}
       </div>
-      <p className="mt-3 break-all text-sm text-white/78">{value}</p>
+      <p className="mt-3 break-all text-sm font-bold text-[rgb(var(--text))]/0.85">{value}</p>
     </div>
   );
 }
@@ -1026,49 +1123,42 @@ function SocialLink({
   icon: ReactNode;
 }) {
   const external = href.startsWith("http") || href.startsWith("mailto:");
+  const innerClass = "group flex items-center justify-between rounded-xl border-[3px] border-slate-900 dark:border-slate-950 bg-[rgb(var(--surface-2))]/50 p-4 shadow-[3px_3px_0px_0px_rgb(var(--card-shadow-color))] transition transform hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_rgb(var(--card-shadow-color))] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none w-full";
+  
+  const content = (
+    <>
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg border-2 border-slate-900 dark:border-slate-950 bg-[rgb(var(--accent))] p-2 text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]">
+          {icon}
+        </div>
+        <div className="text-left">
+          <p className="font-extrabold text-[rgb(var(--text))] text-sm">{label}</p>
+          <p className="text-xs font-medium text-[rgb(var(--muted))]">{value}</p>
+        </div>
+      </div>
+      <ArrowUpRight
+        size={18}
+        className="text-[rgb(var(--muted))] transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[rgb(var(--cyan))]"
+      />
+    </>
+  );
+
   if (external) {
     return (
       <a
         href={href}
         target={href.startsWith("http") ? "_blank" : undefined}
         rel={href.startsWith("http") ? "noreferrer" : undefined}
-        className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/25 hover:bg-cyan-300/8"
+        className={innerClass}
       >
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 text-cyan-100">
-            {icon}
-          </div>
-          <div>
-            <p className="font-medium text-white">{label}</p>
-            <p className="text-sm text-white/52">{value}</p>
-          </div>
-        </div>
-        <ArrowUpRight
-          size={18}
-          className="text-white/45 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
-        />
+        {content}
       </a>
     );
   }
 
   return (
-    <Link
-      href={href}
-      className="group flex items-center justify-between rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/25 hover:bg-cyan-300/8"
-    >
-      <div className="flex items-center gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/8 p-3 text-cyan-100">
-          {icon}
-        </div>
-        <div>
-          <p className="font-medium text-white">{label}</p>
-          <p className="text-sm text-white/52">{value}</p>
-        </div>
-      </div>
-      <ArrowUpRight
-        size={18}
-        className="text-white/45 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
-      />
+    <Link href={href} className={innerClass}>
+      {content}
     </Link>
   );
 }
